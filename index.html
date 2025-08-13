@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>今彩 539 中獎機率計算器（公式 + 圖表 + 累積機率）</title>
+<style>
+    body { font-family: Arial, sans-serif; margin: 30px; background: #f7f7f7; }
+    h2 { color: #333; }
+    input, select, button { padding: 5px; margin: 5px; }
+    table { border-collapse: collapse; margin-top: 20px; background: white; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 8px 12px; vertical-align: top; }
+    th { background: #eee; }
+</style>
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script id="MathJax-script" async
+        src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<h2>今彩 539 中獎機率計算器</h2>
+
+<label>選擇的號碼數量 (1~39)：</label>
+<input type="number" id="pickCount" value="15" min="1" max="39">
+
+<label>至少命中幾個號碼：</label>
+<input type="number" id="minHit" value="3" min="0" max="5">
+
+<label>顯示模式：</label>
+<select id="mode">
+    <option value="simple">簡略模式</option>
+    <option value="detailed">詳細模式（LaTeX公式）</option>
+</select>
+
+<button onclick="calculate()">計算</button>
+
+<div id="result"></div>
+<canvas id="probChart" style="margin-top: 30px; background: white; padding: 10px; border-radius: 8px;"></canvas>
+
+<script>
+function combination(n, k) {
+    if (k < 0 || k > n) return 0;
+    if (k === 0 || k === n) return 1;
+    k = Math.min(k, n - k);
+    let result = 1;
+    for (let i = 1; i <= k; i++) {
+        result *= (n - (k - i));
+        result /= i;
+    }
+    return result;
+}
+
+let chartInstance = null;
+
+function calculate() {
+    const N = 39; // 總號碼
+    const K = 5;  // 開獎號碼
+    const n = parseInt(document.getElementById("pickCount").value);
+    const minHit = parseInt(document.getElementById("minHit").value);
+    const mode = document.getElementById("mode").value;
+
+    if (n < 1 || n > N) {
+        alert("號碼數量必須在 1~39 之間！");
+        return;
+    }
+    if (minHit < 0 || minHit > K) {
+        alert("至少命中數必須在 0~5 之間！");
+        return;
+    }
+
+    const totalComb = combination(N, n);
+    let tableHTML = "<table><tr><th>命中數</th><th>機率 (%)</th>";
+    if (mode === "detailed") tableHTML += "<th>計算過程</th>";
+    tableHTML += "</tr>";
+
+    let labels = [];
+    let dataPoints = [];
+    let cumulativeProb = 0;
+
+    for (let x = 0; x <= K; x++) {
+        if (x > n) break;
+
+        const comb1 = combination(K, x);
+        const comb2 = combination(N - K, n - x);
+        const winComb = comb1 * comb2;
+        const prob = (winComb / totalComb) * 100;
+
+        labels.push(`${x} 個命中`);
+        dataPoints.push(prob);
+
+        if (x >= minHit) cumulativeProb += prob;
+
+        tableHTML += `<tr><td>${x}</td><td>${prob.toFixed(6)}</td>`;
+        if (mode === "detailed") {
+            const latex = `
+                P(X=${x}) = \\frac{\\binom{${K}}{${x}} \\times \\binom{${N-K}}{${n-x}}}{\\binom{${N}}{${n}}}
+                = \\frac{${comb1} \\times ${comb2}}{${totalComb}}
+                \\approx ${prob.toFixed(6)}\\%
+            `;
+            tableHTML += `<td>\\(${latex}\\)</td>`;
+        }
+        tableHTML += "</tr>";
+    }
+
+    // 累積機率
+    tableHTML += `<tr style="background:#fffae6;font-weight:bold;">
+                    <td>至少命中 ${minHit} 個</td>
+                    <td>${cumulativeProb.toFixed(6)}</td>
+                    ${mode === "detailed" ? "<td>以上所有機率加總</td>" : ""}
+                  </tr>`;
+
+    tableHTML += "</table>";
+    document.getElementById("result").innerHTML = tableHTML;
+
+    if (mode === "detailed") MathJax.typesetPromise();
+
+    if (chartInstance) chartInstance.destroy();
+    const ctx = document.getElementById('probChart').getContext('2d');
+    chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '中獎機率 (%)',
+                data: dataPoints,
+                backgroundColor: '#4e79a7'
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: { beginAtZero: true, title: { display: true, text: '機率 (%)' } },
+                x: { title: { display: true, text: '命中數' } }
+            }
+        }
+    });
+}
+</script>
+
+</body>
+</html>
